@@ -9,6 +9,7 @@ from base import BaseDataLoader
 import torch.nn as nn
 from torch.utils.data import Dataset
 import torchvision.transforms as tf
+from scipy import interpolate
 
 from PIL import Image
 
@@ -16,6 +17,40 @@ from typing import Union, Tuple, List
 
 from utils import get_downscaled_size
 import torchvision
+
+from glob import glob
+from os.path import join as pjoin
+
+os.environ["OPENCV_IO_ENABLE_OPENEXR"]="1"
+import cv2
+
+import numpy as np
+
+def load_exr(path, channel = 3):
+
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)[..., :3]
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)[..., :channel]
+    # if use_opencv or channel == 1:
+    #     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)[..., :3]
+    #     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)[..., :channel]
+    # else:
+    #     img = imageio.imread(path, "exr")[..., :channel]
+
+    img[np.isnan(img)] = 0
+    img[np.isinf(img)] = 1000
+
+    return img
+
+def upsampling_mv(motion_vector):
+    ratio_x = 2
+    ratio_y = 2
+
+    motion_vector[..., 1] = motion_vector[..., 1] * ratio_y
+    motion_vector[..., 0] = motion_vector[..., 0] * ratio_x
+
+    upsampled = cv2.resize(motion_vector, [motion_vector.shape[1]*ratio_y, motion_vector.shape[0]*ratio_x], interpolation=cv2.INTER_LINEAR)
+
+    return upsampled
 
 class NSRRDataLoader(BaseDataLoader):
     """
@@ -25,25 +60,17 @@ class NSRRDataLoader(BaseDataLoader):
     each size is (batch x channel x height x width)
     """
     def __init__(self,
-                 data_dir: str,
-                 img_dirname: str,
-                 depth_dirname: str,
-                 flow_dirname: str,
+                 data_dir_list: list,
                  batch_size: int,
+                 cropped_size: Union[Tuple[int, int], List[int], int] = (256, 256),
                  shuffle: bool = True,
                  validation_split: float = 0.0,
                  num_workers: int = 1,
-                 downsample: Union[Tuple[int, int], List[int], int] = (2, 2),
-                 num_data: Union[int,None] = None,
-                 resize_factor : Union[int, None] = None,
+                 num_data: Union[int,None] = None
                  ):
-        dataset = NSRRDataset(data_dir,
-                              img_dirname=img_dirname,
-                              depth_dirname=depth_dirname,
-                              flow_dirname=flow_dirname,
-                              downsample=downsample,
+        dataset = NSRRDataset(data_dir_list,
+                              cropped_size = cropped_size,
                               num_data=num_data,
-                              resize_factor = resize_factor
                               )
         super(NSRRDataLoader, self).__init__(dataset=dataset,
                                              batch_size=batch_size,
@@ -58,46 +85,42 @@ class NSRRDataset(Dataset):
     Requires that corresponding view, depth and motion frames share the same name.
     """
     def __init__(self,
-                 data_dir: str,
-                 img_dirname: str,
-                 depth_dirname: str,
-                 flow_dirname: str,
-                 downsample: Union[Tuple[int, int], List[int], int] = (2, 2),
+                 data_dir_list: list,
+                 cropped_size: Union[Tuple[int, int], List[int], int] = (256, 256),
                  transform: nn.Module = None,
-                 num_data:Union[int, None] = None,
-                 resize_factor:Union[int, None] = None,
                  ):
         super(NSRRDataset, self).__init__()
 
-        self.data_dir = data_dir
-        self.img_dirname = img_dirname
-        self.depth_dirname = depth_dirname
-        self.flow_dirname = flow_dirname
-        self.resize_factor = resize_factor
-
-        if type(downsample) == int:
-            downsample = (downsample, downsample)
-        self.downsample = tuple(downsample)
+        self.cropped_size = cropped_size
 
         if transform is None:
             self.transform = tf.ToTensor()
-        self.img_list = os.listdir(os.path.join(self.data_dir, self.img_dirname))
-        self.img_list = sorted(self.img_list, key=lambda keys:[ord(i) for i in keys],reverse=False)
+
+        self.img_list = []
+        for data_dir in data_dir_list:
+            img_paths = glob(pjoin(data_dir, "PreTonemapHDRColor.*.exr"))
+            tmp_list = []
+            for path in img_paths:
+                idx = int(os.path.basename(path).split('.')[1])
+                tmp_list.append((data_dir, idx))
+            tmp_list = sorted(tmp_list, key=lambda x: x[1], reverse=False)
+
+            self.img_list += tmp_list
         
         self.data_list = []
         
-        for i, img_name in enumerate(self.img_list):
-            if(i>=num_data):
-                break
+        for i in range(len(self.img_list)):
+
             if(i==len(self.img_list)-4): # if current frame is the last img
                 break   
+
             current_frame = self.img_list[i+4]
             pre_1, pre_2, pre_3, pre_4 = self.img_list[i+3], self.img_list[i+2], self.img_list[i+1], self.img_list[i]
-            
-            if 'a'<=current_frame[0]<='e' and not (current_frame[0]==pre_1[0]==pre_2[0]==pre_3[0]==pre_4[0]):
+
+            if current_frame[0]!=pre_1[0] or current_frame[0]!=pre_2[0] or current_frame[0]!=pre_3[0] or current_frame[0]!=pre_4[0]:
                 continue
-            else:
-                self.data_list.append([current_frame, pre_1, pre_2, pre_3, pre_4])
+
+            self.data_list.append([current_frame, pre_1, pre_2, pre_3, pre_4])
                 
     def __getitem__(self, index):
         # view
@@ -107,29 +130,29 @@ class NSRRDataset(Dataset):
         view_list, depth_list, flow_list, truth_list = [], [], [], []
         # elements in the lists following the order: current frame i, pre i-1, pre i-2, pre i-3, pre i-4
         for frame in data:
-            img_path = os.path.join(self.data_dir, self.img_dirname, frame)
-            depth_path = os.path.join(self.data_dir, self.depth_dirname, frame)
-            flow_path = os.path.join(self.data_dir, self.flow_dirname, frame)
-            
-            img_view_truth = Image.open(img_path)
-            img_flow = Image.open(flow_path)
-            img_depth = Image.open(depth_path).convert(mode="L")
 
-            img_view_truth = img_view_truth.resize((img_view_truth.size[0]//self.resize_factor, img_view_truth.size[1]//self.resize_factor), Image.ANTIALIAS)
-            img_flow = img_flow.resize((img_flow.size[0]//self.resize_factor, img_flow.size[1]//self.resize_factor), Image.ANTIALIAS)
-            img_depth = img_depth.resize((img_depth.size[0]//self.resize_factor, img_depth.size[1]//self.resize_factor), Image.ANTIALIAS)
+            data_dir = frame[0]
+            idx = frame[1]
+
+            low_img_path = pjoin(data_dir, "PreTonemapHDRColor.{:04d}.exr".format(idx))
+            high_img_path = pjoin(data_dir, "High+SSAA", "PreTonemapHDRColor64SPP.{:04d}.exr".format(idx))
+            depth_img_path = pjoin(data_dir, "SceneDepth.{:04d}.exr".format(idx))
+            mv_path = pjoin(data_dir, "MotionVector.{:04d}.exr".format(idx))
+
+        
+            img_view = load_exr(low_img_path)
+            img_view_truth = load_exr(high_img_path)
+            img_depth = load_exr(depth_img_path, 1)
+            img_flow = load_exr(mv_path, 2)
+
+            img_flow = upsampling_mv(img_flow)
 
             trans = self.transform
 
             img_view_truth = trans(img_view_truth)
             img_flow = trans(img_flow)
 
-            downscaled_size = get_downscaled_size(img_view_truth.unsqueeze(0), self.downsample)
-
-            trans_downscale = tf.Resize(downscaled_size)
-            trans = tf.Compose([trans_downscale, trans])
-
-            img_view = trans_downscale(img_view_truth)
+            img_view = trans(img_view)
             # depth data is in a single-channel image.
             img_depth = trans(img_depth)
             

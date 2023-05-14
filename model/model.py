@@ -29,7 +29,7 @@ class NSRR(BaseModel):
         self.pre_i4_fea_ext = FeatureExtraction()
 
         self.zero_upsample = ZeroUpSampling(upsample_scale)
-        self.backward_warp = BackwardWarp()
+        self.backward_warp = BackwardWarpMV()
 
         self.feature_reweighting = FeatureReweighting()
         self.reconstruction = Reconstruction()
@@ -65,20 +65,22 @@ class NSRR(BaseModel):
         '''
         We are not sure to use the i-1th motion to warp the i-1th frame 
             or to use the ith motion to warp the i-1th frame 
+
+        Should use current mv to warp previous frame
         '''
-        pre_i1_warped = self.backward_warp(pre_i1_sampled, pre_i1_flow)
+        pre_i1_warped = self.backward_warp(pre_i1_sampled, cur_i_flow)
 
-        _ = self.backward_warp(pre_i2_sampled, pre_i2_flow)
-        pre_i2_warped = self.backward_warp(_, pre_i1_flow)
+        _ = self.backward_warp(pre_i2_sampled, pre_i1_flow)
+        pre_i2_warped = self.backward_warp(_, cur_i_flow)
 
-        _ = self.backward_warp(pre_i3_sampled, pre_i3_flow)
+        _ = self.backward_warp(pre_i3_sampled, pre_i2_flow)
+        _ = self.backward_warp(_, pre_i1_flow)
+        pre_i3_warped = self.backward_warp(_, cur_i_flow)
+
+        _ = self.backward_warp(pre_i4_sampled, pre_i3_flow)
         _ = self.backward_warp(_, pre_i2_flow)
-        pre_i3_warped = self.backward_warp(_, pre_i1_flow)
-
-        _ = self.backward_warp(pre_i4_sampled, pre_i4_flow)
-        _ = self.backward_warp(_, pre_i3_flow)
-        _ = self.backward_warp(_, pre_i2_flow)
-        pre_i4_warped = self.backward_warp(_, pre_i1_flow)
+        _ = self.backward_warp(_, pre_i1_flow)
+        pre_i4_warped = self.backward_warp(_, cur_i_flow)
 
         # Feature reweighting
         previous_feature_list = [pre_i1_warped, pre_i2_warped, pre_i3_warped, pre_i4_warped]
@@ -188,6 +190,40 @@ class BackwardWarp(BaseModel):
         motion = torch.cat((motion_x, motion_y), dim=1)
         # motion is: batch x 2-channel x height x width
         return motion
+    
+class BackwardWarpMV(BaseModel):
+    """
+    A model for backward warping 2D image tensors according to motion tensors.
+    """
+    def __init__(self):
+        super(BackwardWarpMV, self).__init__()
+
+    def forward(self, x_image: torch.Tensor, x_raw_motion: torch.Tensor=None) -> torch.Tensor:
+
+        x_motion = x_raw_motion.clone()
+        x_motion[:, 0] = -x_motion[:, 0]
+
+
+        index_batch, _, height, width = x_image.size()
+        grid_x = torch.arange(width).view(1, -1).repeat(height, 1)
+        grid_y = torch.arange(height).view(-1, 1).repeat(1, width)
+        grid_x = grid_x.view(1, 1, height, width).repeat(index_batch, 1, 1, 1)
+        grid_y = grid_y.view(1, 1, height, width).repeat(index_batch, 1, 1, 1)
+        ##  
+        grid = torch.cat((grid_x, grid_y), 1).float().to(device=x_motion.device)
+        # grid is: [batch, channel (2), height, width]
+        vgrid = grid + x_motion
+        # Grid values must be normalised positions in [-1, 1]
+        vgrid_x = vgrid[:, 0, :, :]
+        vgrid_y = vgrid[:, 1, :, :]
+        vgrid[:, 0, :, :] = (vgrid_x / width) * 2.0 - 1.0
+        vgrid[:, 1, :, :] = (vgrid_y / height) * 2.0 - 1.0
+        # swapping grid dimensions in order to match the input of grid_sample.
+        # that is: [batch, output_height, output_width, grid_pos (2)]
+        vgrid = vgrid.permute((0, 2, 3, 1)).to(device=x_image.device)
+        output = F.grid_sample(x_image, vgrid, mode='bilinear', align_corners=False)
+        return output
+    
 
 class FeatureReweighting(BaseModel):
     '''Feature Reweighting Network (特征重加权网络))'''
