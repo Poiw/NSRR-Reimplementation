@@ -176,8 +176,8 @@ class NSRRDataset(Dataset):
             mv_path = pjoin(data_dir, "MotionVector.{:04d}.exr".format(idx))
 
         
-            img_view = load_exr(low_img_path)
-            img_view_truth = load_exr(high_img_path)
+            img_view = np.clip(load_exr(low_img_path), 0, 10)
+            img_view_truth = np.clip(load_exr(high_img_path), 0, 10)
             img_depth = load_exr(depth_img_path, 1)
             img_flow = load_exr(mv_path, 2)
 
