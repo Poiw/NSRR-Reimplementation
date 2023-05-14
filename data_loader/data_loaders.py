@@ -3,6 +3,7 @@ import os
 
 from numpy import pi, unicode_
 from torch._C import set_flush_denormal
+import torch
 from torchvision.transforms.transforms import Resize
 from base import BaseDataLoader
 
@@ -62,7 +63,7 @@ class NSRRDataLoader(BaseDataLoader):
     def __init__(self,
                  data_dir_list: list,
                  batch_size: int,
-                 cropped_size: Union[Tuple[int, int], List[int], int] = (256, 256),
+                 cropped_size: Union[Tuple[int, int], List[int], int] = None,
                  shuffle: bool = True,
                  validation_split: float = 0.0,
                  num_workers: int = 1,
@@ -125,6 +126,9 @@ class NSRRDataset(Dataset):
         # image_name = self.view_listdir[index]
         data = self.data_list[index]
 
+        crop_l, crop_r, crop_t, crop_b = None, None, None, None
+
+
         view_list, depth_list, flow_list, truth_list = [], [], [], []
         # elements in the lists following the order: current frame i, pre i-1, pre i-2, pre i-3, pre i-4
         for frame in data:
@@ -142,6 +146,20 @@ class NSRRDataset(Dataset):
             img_view_truth = load_exr(high_img_path)
             img_depth = load_exr(depth_img_path, 1)
             img_flow = load_exr(mv_path, 2)
+
+
+            if self.cropped_size is not None:
+                if crop_l is None:
+                    crop_l = torch.randint(0, img_view.shape[1] - self.cropped_size[1], ()).item()
+                    crop_r = crop_l + self.cropped_size[1]
+                    crop_t = torch.randint(0, img_view.shape[0] - self.cropped_size[0], ()).item()
+                    crop_b = crop_t + self.cropped_size[0]
+                
+                img_view = img_view[crop_t:crop_b, crop_l:crop_r, :]
+                img_view_truth = img_view_truth[crop_t*2:crop_b*2, crop_l*2:crop_r*2, :]
+                img_depth = img_depth[crop_t:crop_b, crop_l:crop_r]
+                img_flow = img_flow[crop_t:crop_b, crop_l:crop_r, :]
+
 
             img_flow = upsampling_mv(img_flow)
 

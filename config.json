@@ -12,6 +12,7 @@
         "type": "NSRRDataLoader",
         "args":{
             "data_dir_list": ["F:\\NSR\\Bunker\\Seq1"],
+            "cropped_size": [256, 256],
             "batch_size": 1,
             "shuffle": true,
             "validation_split": 0.02,
