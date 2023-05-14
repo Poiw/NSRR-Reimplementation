@@ -53,6 +53,29 @@ def upsampling_mv(motion_vector):
 
     return upsampled
 
+def MyCollate_fn(batch):
+
+    view_list = batch[0][0]
+    depth_list = batch[0][1]
+    flow_list = batch[0][2]
+    truth = batch[0][3]
+
+    for i in range(1, len(batch)):
+
+        for j in range(len(view_list)):
+            view_list[j] = torch.cat([view_list[j], batch[i][0][j]], dim=0)
+        
+        for j in range(len(depth_list)):
+            depth_list[j] = torch.cat([depth_list[j], batch[i][1][j]], dim=0)
+
+        for j in range(len(flow_list)):
+            flow_list[j] = torch.cat([flow_list[j], batch[i][2][j]], dim=0)
+        
+        truth = torch.cat([truth, batch[i][3]], dim=0)
+
+    return view_list, depth_list, flow_list, truth
+
+
 class NSRRDataLoader(BaseDataLoader):
     """
     Generate batch of data
@@ -64,18 +87,21 @@ class NSRRDataLoader(BaseDataLoader):
                  data_dir_list: list,
                  batch_size: int,
                  cropped_size: Union[Tuple[int, int], List[int], int] = None,
+                 cropped_num: int = 1,
                  shuffle: bool = True,
                  validation_split: float = 0.0,
                  num_workers: int = 1,
                  ):
         dataset = NSRRDataset(data_dir_list,
                               cropped_size = cropped_size,
+                              cropped_num = cropped_num
                               )
         super(NSRRDataLoader, self).__init__(dataset=dataset,
                                              batch_size=batch_size,
                                              shuffle=shuffle,
                                              validation_split=validation_split,
                                              num_workers=num_workers,
+                                             collate_fn=MyCollate_fn
                                              )
 
 
@@ -86,11 +112,13 @@ class NSRRDataset(Dataset):
     def __init__(self,
                  data_dir_list: list,
                  cropped_size: Union[Tuple[int, int], List[int], int] = (256, 256),
+                 cropped_num: int = 1,
                  transform: nn.Module = None,
                  ):
         super(NSRRDataset, self).__init__()
 
         self.cropped_size = cropped_size
+        self.cropped_num = cropped_num
 
         if transform is None:
             self.transform = tf.ToTensor()
@@ -147,20 +175,6 @@ class NSRRDataset(Dataset):
             img_depth = load_exr(depth_img_path, 1)
             img_flow = load_exr(mv_path, 2)
 
-
-            if self.cropped_size is not None:
-                if crop_l is None:
-                    crop_l = torch.randint(0, img_view.shape[1] - self.cropped_size[1], ()).item()
-                    crop_r = crop_l + self.cropped_size[1]
-                    crop_t = torch.randint(0, img_view.shape[0] - self.cropped_size[0], ()).item()
-                    crop_b = crop_t + self.cropped_size[0]
-                
-                img_view = img_view[crop_t:crop_b, crop_l:crop_r, :]
-                img_view_truth = img_view_truth[crop_t*2:crop_b*2, crop_l*2:crop_r*2, :]
-                img_depth = img_depth[crop_t:crop_b, crop_l:crop_r]
-                img_flow = img_flow[crop_t:crop_b, crop_l:crop_r, :]
-
-
             img_flow = upsampling_mv(img_flow)
 
             trans = self.transform
@@ -171,6 +185,49 @@ class NSRRDataset(Dataset):
             img_view = trans(img_view)
             # depth data is in a single-channel image.
             img_depth = trans(img_depth)
+
+            if self.cropped_size is not None:
+
+                if crop_l is None:
+
+                    crop_l, crop_r, crop_t, crop_b = [], [], [], []
+
+                    for i in range(self.cropped_num):
+
+                        crop_l.append(torch.randint(0, img_view.shape[2] - self.cropped_size[1], ()).item())
+                        crop_r.append(crop_l[i] + self.cropped_size[1])
+                        crop_t.append(torch.randint(0, img_view.shape[1] - self.cropped_size[0], ()).item())
+                        crop_b.append(crop_t[i] + self.cropped_size[0])
+
+                    # crop_l = torch.randint(0, img_view.shape[1] - self.cropped_size[1], ()).item()
+                    # crop_r = crop_l + self.cropped_size[1]
+                    # crop_t = torch.randint(0, img_view.shape[0] - self.cropped_size[0], ()).item()
+                    # crop_b = crop_t + self.cropped_size[0]
+                
+                img_view_list = []
+                img_view_truth_list = []
+                img_depth_list = []
+                img_flow_list = []
+                for i in range(self.cropped_num):
+                    
+                    l, r, t, b = crop_l[i], crop_r[i], crop_t[i], crop_b[i]
+
+                    img_view_list.append(img_view[:, t:b, l:r])
+                    img_view_truth_list.append(img_view_truth[:, t*2:b*2, l*2:r*2])
+                    img_depth_list.append(img_depth[:, t:b, l:r])
+                    img_flow_list.append(img_flow[:, t*2:b*2, l*2:r*2])
+
+                img_view = torch.stack(img_view_list, dim=0)
+                img_view_truth = torch.stack(img_view_truth_list, dim=0)
+                img_depth = torch.stack(img_depth_list, dim=0)
+                img_flow = torch.stack(img_flow_list, dim=0)
+
+                # img_view = img_view[crop_t:crop_b, crop_l:crop_r, :]
+                # img_view_truth = img_view_truth[crop_t*2:crop_b*2, crop_l*2:crop_r*2, :]
+                # img_depth = img_depth[crop_t:crop_b, crop_l:crop_r]
+                # img_flow = img_flow[crop_t:crop_b, crop_l:crop_r, :]
+
+
             
             view_list.append(img_view)
             depth_list.append(img_depth)
