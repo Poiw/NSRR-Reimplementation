@@ -39,7 +39,7 @@ class Trainer(BaseTrainer):
         self.valid_data_loader = valid_data_loader
         self.do_validation = self.valid_data_loader is not None
         self.lr_scheduler = lr_scheduler
-        self.log_step = int(np.sqrt(data_loader.batch_size))
+        self.log_step = 50
 
         self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
         self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
@@ -71,8 +71,6 @@ class Trainer(BaseTrainer):
             # toPILImage = torchvision.transforms.ToPILImage()
             # toPILImage(output[0]).save(pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.png'))
             # toPILImage(truth[0]).save(pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.png'))
-            tensorSaveExr(output[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.exr'))
-            tensorSaveExr(truth[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.exr'))
             
             loss = self.criterion(output, target)
             loss.backward()
@@ -93,6 +91,9 @@ class Trainer(BaseTrainer):
                     self._progress(batch_idx),
                     loss.item()))
                 self.writer.add_image('input', make_grid(view_list[0].cpu(), nrow=8, normalize=True))
+
+                tensorSaveExr(output[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.exr'))
+                tensorSaveExr(truth[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.exr'))
                 
             if batch_idx == self.len_epoch:
                 break
