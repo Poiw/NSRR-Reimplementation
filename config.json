@@ -13,11 +13,11 @@
         "args":{
             "data_dir_list": ["/home/M2_Disk/Songyin/Data/Bunker/Train/Seq1", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq2", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq3", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq4"],
             "cropped_size": [256, 256],
-            "cropped_num": 8,
-            "batch_size": 2,
+            "cropped_num": 2,
+            "batch_size": 4,
             "shuffle": true,
             "validation_split": 0.02,
-            "num_workers": 32
+            "num_workers": 16
         }
     },
     "optimizer": {
@@ -44,6 +44,8 @@
         "save_dir": "/mnt/SATA_DISK_1/Songyin/ExtraSS/NSR/Logs",
         "save_period": 1,
         "verbosity": 2,
+
+        "log_step": 200,
         
         "monitor": "min val_loss",
         "early_stop": 10,
