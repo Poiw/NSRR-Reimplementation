@@ -66,11 +66,9 @@ class NSRRDataLoader(BaseDataLoader):
                  shuffle: bool = True,
                  validation_split: float = 0.0,
                  num_workers: int = 1,
-                 num_data: Union[int,None] = None
                  ):
         dataset = NSRRDataset(data_dir_list,
                               cropped_size = cropped_size,
-                              num_data=num_data,
                               )
         super(NSRRDataLoader, self).__init__(dataset=dataset,
                                              batch_size=batch_size,
