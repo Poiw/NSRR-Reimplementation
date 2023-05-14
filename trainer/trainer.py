@@ -6,6 +6,18 @@ from base import BaseTrainer
 from utils import inf_loop, MetricTracker
 import torchvision
 from PIL import Image
+from os.path import join as pjoin
+import imageio
+
+def tensorSaveExr(x, path):
+    x = x.detach().cpu().numpy()
+    x = x.transpose([1, 2, 0])
+    if x.shape[2] == 2:
+        zeros = np.zeros((x.shape[0], x.shape[1],1))
+        x = np.concatenate([x, zeros], axis=2)
+
+    imageio.imwrite(path, x.astype(np.float32))
+
 
 class Trainer(BaseTrainer):
     """
@@ -56,9 +68,11 @@ class Trainer(BaseTrainer):
             output = self.model(view_list, depth_list, flow_list)
 
             # Save batch result
-            toPILImage = torchvision.transforms.ToPILImage()
-            toPILImage(output[0]).save(f'./output_pic/output/epoch_{epoch}_batch_{batch_idx}.png')
-            toPILImage(truth[0]).save(f'./output_pic/ground_truth/epoch_{epoch}_batch_{batch_idx}.png')
+            # toPILImage = torchvision.transforms.ToPILImage()
+            # toPILImage(output[0]).save(pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.png'))
+            # toPILImage(truth[0]).save(pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.png'))
+            tensorSaveExr(output[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.exr'))
+            tensorSaveExr(truth[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.exr'))
             
             loss = self.criterion(output, target)
             loss.backward()

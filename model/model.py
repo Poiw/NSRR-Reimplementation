@@ -52,7 +52,7 @@ class NSRR(BaseModel):
         # h_cur_i_1 = self.zero_upsample(self.cur_i_fea_ext(rgb_to_ycbcr(cur_i_view), cur_i_depth))
         h_cur_i_1 = self.zero_upsample(self.cur_i_fea_ext(cur_i_view, cur_i_depth))
         # current frame path 2
-        h_cur_i_2 = self.zero_upsample(torch.concat((cur_i_view, cur_i_depth), dim=channel_dim))
+        h_cur_i_2 = self.zero_upsample(torch.cat((cur_i_view, cur_i_depth), dim=channel_dim))
        
        
         # zero upsample for previous frames
@@ -96,14 +96,14 @@ class NSRR(BaseModel):
 
 class FeatureExtraction(BaseModel):
     '''Feature Extraction Network (特征提取网络)'''
-    def __init__(self, kernel_size = 3, padding = 'same'):
+    def __init__(self, kernel_size = 3):
         super(FeatureExtraction, self).__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(in_channels= 4, out_channels= 32, kernel_size= kernel_size, padding= padding),
+            nn.Conv2d(in_channels= 4, out_channels= 32, kernel_size= kernel_size, padding= 1),
             nn.ReLU(),
-            nn.Conv2d(in_channels= 32, out_channels= 32, kernel_size= kernel_size, padding= padding),
+            nn.Conv2d(in_channels= 32, out_channels= 32, kernel_size= kernel_size, padding= 1),
             nn.ReLU(),
-            nn.Conv2d(in_channels= 32, out_channels= 8, kernel_size= kernel_size, padding= padding),
+            nn.Conv2d(in_channels= 32, out_channels= 8, kernel_size= kernel_size, padding= 1),
             nn.ReLU()
         )
         
@@ -113,10 +113,10 @@ class FeatureExtraction(BaseModel):
         # output channel 0-7: trained features
         # output channel 8-10: raw color map
         # output channel 11: raw depth map
-        x = torch.concat((color_map, depth_map), dim= channel_dim) 
+        x = torch.cat((color_map, depth_map), dim= channel_dim) 
         h = self.net(x)
     
-        return torch.concat((h, x), dim= channel_dim)
+        return torch.cat((h, x), dim= channel_dim)
 
 class ZeroUpSampling(BaseModel):
     """
@@ -227,7 +227,7 @@ class BackwardWarpMV(BaseModel):
 
 class FeatureReweighting(BaseModel):
     '''Feature Reweighting Network (特征重加权网络))'''
-    def __init__(self, kernel_size = 3, padding = 'same', scale = 10):
+    def __init__(self, kernel_size = 3, padding = 1, scale = 10):
         super(FeatureReweighting, self).__init__()
 
         self.scale = scale
@@ -248,7 +248,7 @@ class FeatureReweighting(BaseModel):
         # each previous feature has 4 channels 
         # 4 previous frames in all
         
-        x = torch.concat((upsampled_current_feature,)+tuple(previous_features[i][:,:, :, :] for i in range(len(previous_features))), dim= channel_dim)
+        x = torch.cat((upsampled_current_feature,)+tuple(previous_features[i][:,:, :, :] for i in range(len(previous_features))), dim= channel_dim)
         w = self.net(x)
         w = (w-(-1))/2*10 # Scale
         
@@ -257,7 +257,7 @@ class FeatureReweighting(BaseModel):
     
 class Reconstruction(BaseModel):
     '''Recomstriction Network (重建网络)'''
-    def __init__(self, kernel_size=3, padding='same'):
+    def __init__(self, kernel_size=3, padding=1):
         super(Reconstruction, self).__init__()
         self.pooling = nn.MaxPool2d(2)
 
@@ -315,9 +315,9 @@ class Reconstruction(BaseModel):
         
         out_center = self.center(out_encoder_2)
         
-        out_decoder_1 = self.decoder_1(torch.concat((out_center, out_encoder_2), dim= channel_dim))
+        out_decoder_1 = self.decoder_1(torch.cat((out_center, out_encoder_2), dim= channel_dim))
 
-        out_decoder_2 = self.decoder_2(torch.concat((out_encoder_1, out_decoder_1), dim= channel_dim))
+        out_decoder_2 = self.decoder_2(torch.cat((out_encoder_1, out_decoder_1), dim= channel_dim))
 
         return out_decoder_2
 

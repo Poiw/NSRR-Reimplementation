@@ -30,11 +30,13 @@ class ConfigParser:
             run_id = datetime.now().strftime(r'%m%d_%H%M%S')
         self._save_dir = save_dir / 'models' / exper_name / run_id
         self._log_dir = save_dir / 'log' / exper_name / run_id
+        self._img_dir = save_dir / 'output_pic' / exper_name / run_id
 
         # make directory for saving checkpoints and log.
         exist_ok = run_id == ''
         self.save_dir.mkdir(parents=True, exist_ok=exist_ok)
         self.log_dir.mkdir(parents=True, exist_ok=exist_ok)
+        self.img_dir.mkdir(parents=True, exist_ok=exist_ok)
 
         # save updated config file to the checkpoint dir
         write_json(self.config, self.save_dir / 'config.json')
@@ -130,6 +132,10 @@ class ConfigParser:
     @property
     def log_dir(self):
         return self._log_dir
+    
+    @property
+    def img_dir(self):
+        return self._img_dir
 
 # helper functions to update config dict with custom cli options
 def _update_config(config, modification):
