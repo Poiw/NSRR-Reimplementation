@@ -40,6 +40,7 @@ class Trainer(BaseTrainer):
         self.do_validation = self.valid_data_loader is not None
         self.lr_scheduler = lr_scheduler
         self.log_step = config["trainer"]["log_step"]
+        self.save_img_step = config["trainer"]["save_img_step"]
 
         self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
         self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
@@ -92,6 +93,7 @@ class Trainer(BaseTrainer):
                     loss.item()))
                 self.writer.add_image('input', make_grid(view_list[0].cpu(), nrow=8, normalize=True))
 
+            if batch_idx % self.save_img_step == 0:
                 tensorSaveExr(output[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.exr'))
                 tensorSaveExr(view_list[0][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input0.exr'))
                 tensorSaveExr(view_list[1][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input1.exr'))
