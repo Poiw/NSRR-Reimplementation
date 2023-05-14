@@ -86,6 +86,7 @@ class NSRRDataLoader(BaseDataLoader):
     def __init__(self,
                  data_dir_list: list,
                  batch_size: int,
+                 augmentation: bool = False,
                  cropped_size: Union[Tuple[int, int], List[int], int] = None,
                  cropped_num: int = 1,
                  shuffle: bool = True,
@@ -94,7 +95,8 @@ class NSRRDataLoader(BaseDataLoader):
                  ):
         dataset = NSRRDataset(data_dir_list,
                               cropped_size = cropped_size,
-                              cropped_num = cropped_num
+                              cropped_num = cropped_num,
+                              augmentation = augmentation,
                               )
         super(NSRRDataLoader, self).__init__(dataset=dataset,
                                              batch_size=batch_size,
@@ -113,12 +115,15 @@ class NSRRDataset(Dataset):
                  data_dir_list: list,
                  cropped_size: Union[Tuple[int, int], List[int], int] = (256, 256),
                  cropped_num: int = 1,
+                 augmentation: bool = False,
                  transform: nn.Module = None,
                  ):
         super(NSRRDataset, self).__init__()
 
         self.cropped_size = cropped_size
         self.cropped_num = cropped_num
+
+        self.augmentation = augmentation
 
         if transform is None:
             self.transform = tf.ToTensor()
@@ -155,6 +160,7 @@ class NSRRDataset(Dataset):
         data = self.data_list[index]
 
         crop_l, crop_r, crop_t, crop_b = None, None, None, None
+        augmentation = None
 
 
         view_list, depth_list, flow_list, truth_list = [], [], [], []
@@ -186,6 +192,15 @@ class NSRRDataset(Dataset):
             # depth data is in a single-channel image.
             img_depth = trans(img_depth)
 
+
+            if self.augmentation and augmentation is None:
+
+                augmentation = []
+
+                for i in range(self.cropped_num):
+                    augmentation.append(torch.rand((3, 1, 1)) * 2)
+
+
             if self.cropped_size is not None:
 
                 if crop_l is None:
@@ -203,7 +218,9 @@ class NSRRDataset(Dataset):
                     # crop_r = crop_l + self.cropped_size[1]
                     # crop_t = torch.randint(0, img_view.shape[0] - self.cropped_size[0], ()).item()
                     # crop_b = crop_t + self.cropped_size[0]
-                
+
+
+
                 img_view_list = []
                 img_view_truth_list = []
                 img_depth_list = []
@@ -212,8 +229,13 @@ class NSRRDataset(Dataset):
                     
                     l, r, t, b = crop_l[i], crop_r[i], crop_t[i], crop_b[i]
 
-                    img_view_list.append(img_view[:, t:b, l:r])
-                    img_view_truth_list.append(img_view_truth[:, t*2:b*2, l*2:r*2])
+                    if self.augmentation:
+                        img_view_list.append(img_view[:, t:b, l:r] * augmentation[i])
+                        img_view_truth_list.append(img_view_truth[:, t*2:b*2, l*2:r*2] * augmentation[i])
+                    else:
+                        img_view_list.append(img_view[:, t:b, l:r])
+                        img_view_truth_list.append(img_view_truth[:, t*2:b*2, l*2:r*2])
+
                     img_depth_list.append(img_depth[:, t:b, l:r])
                     img_flow_list.append(img_flow[:, t*2:b*2, l*2:r*2])
 

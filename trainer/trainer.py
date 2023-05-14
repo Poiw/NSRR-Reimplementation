@@ -112,6 +112,10 @@ class Trainer(BaseTrainer):
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
+
+        for key, value in log.items():
+            self.writer.add_scalar("avg_" + key, value)
+
         return log
 
     def _valid_epoch(self, epoch):

@@ -14,9 +14,10 @@
             "data_dir_list": ["/home/M2_Disk/Songyin/Data/Bunker/Train/Seq1", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq2", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq3", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq4"],
             "cropped_size": [256, 256],
             "cropped_num": 2,
+            "augmentation": true,
             "batch_size": 4,
             "shuffle": true,
-            "validation_split": 0.02,
+            "validation_split": 0.002,
             "num_workers": 16
         }
     },
