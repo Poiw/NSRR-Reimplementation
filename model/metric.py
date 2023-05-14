@@ -20,5 +20,5 @@ def ssim(img1:torch.Tensor, img2:torch.Tensor):
         img1 = img1.cuda()
         img2 = img2.cuda()
 
-    return pytorch_ssim.ssim(img2, img1)
+    return pytorch_ssim.ssim(img2, img1).item()
 

@@ -11,12 +11,12 @@
     "data_loader": {
         "type": "NSRRDataLoader",
         "args":{
-            "data_dir_list": ["F:\\NSR\\Bunker\\Seq1"],
+            "data_dir_list": ["/home/M2_Disk/Songyin/Data/Bunker/Train/Seq1", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq2", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq3", "/home/M2_Disk/Songyin/Data/Bunker/Train/Seq4"],
             "cropped_size": [256, 256],
-            "batch_size": 1,
+            "batch_size": 8,
             "shuffle": true,
             "validation_split": 0.02,
-            "num_workers": 4
+            "num_workers": 32
         }
     },
     "optimizer": {
@@ -40,7 +40,7 @@
     },
     "trainer": {
         "epochs": 100,
-        "save_dir": "saved/",
+        "save_dir": "/mnt/SATA_DISK_1/Songyin/ExtraSS/NSR/Logs",
         "save_period": 1,
         "verbosity": 2,
         
