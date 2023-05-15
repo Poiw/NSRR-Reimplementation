@@ -94,7 +94,7 @@ def feature_reconstruction_loss(conv_layer_output: torch.Tensor, conv_layer_targ
     return loss
 
 
-def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float=0.01) -> torch.Tensor:
+def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float=1e-3) -> torch.Tensor:
     """
     Computes the loss as defined in the NSRR paper.
     
@@ -107,7 +107,9 @@ def nsrr_loss(output: torch.Tensor, target: torch.Tensor, w: float=0.01) -> torc
     #     loss_perception += feature_reconstruction_loss(conv_layers_output[i], conv_layers_target[i])
     loss_perception = VGG_Loss(output, target)
 
-    loss = loss_ssim + w * loss_perception
+    loss_l1 = torch.abs(output - target).mean()
+
+    loss = 0.4 * loss_l1 + loss_ssim + w * loss_perception
     return loss
 
 class PerceptualLossManager(metaclass=SingletonPattern):

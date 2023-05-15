@@ -18,6 +18,8 @@ def tensorSaveExr(x, path):
 
     imageio.imwrite(path, x.astype(np.float32))
 
+def Detonemap(x):
+    return torch.exp(x) - 1
 
 class Trainer(BaseTrainer):
     """
@@ -94,13 +96,13 @@ class Trainer(BaseTrainer):
                 self.writer.add_image('input', make_grid(view_list[0].cpu(), nrow=8, normalize=True))
 
             if batch_idx % self.save_img_step == 0:
-                tensorSaveExr(output[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.exr'))
-                tensorSaveExr(view_list[0][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input0.exr'))
-                tensorSaveExr(view_list[1][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input1.exr'))
-                tensorSaveExr(view_list[2][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input2.exr'))
-                tensorSaveExr(view_list[3][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input3.exr'))
-                tensorSaveExr(view_list[4][0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input4.exr'))
-                tensorSaveExr(truth[0], pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.exr'))
+                tensorSaveExr(Detonemap(output[0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.exr'))
+                tensorSaveExr(Detonemap(view_list[0][0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input0.exr'))
+                tensorSaveExr(Detonemap(view_list[1][0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input1.exr'))
+                tensorSaveExr(Detonemap(view_list[2][0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input2.exr'))
+                tensorSaveExr(Detonemap(view_list[3][0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input3.exr'))
+                tensorSaveExr(Detonemap(view_list[4][0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.input4.exr'))
+                tensorSaveExr(Detonemap(truth[0]), pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.exr'))
                 
             if batch_idx == self.len_epoch:
                 break
