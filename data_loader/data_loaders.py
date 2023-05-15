@@ -252,7 +252,11 @@ class NSRRDataset(Dataset):
                 # img_depth = img_depth[crop_t:crop_b, crop_l:crop_r]
                 # img_flow = img_flow[crop_t:crop_b, crop_l:crop_r, :]
 
-
+            else:
+                img_view = tonemap(img_view).unsqueeze(0)
+                img_view_truth = tonemap(img_view_truth).unsqueeze(0)
+                img_depth = img_depth.unsqueeze(0)
+                img_flow = img_flow.unsqueeze(0)
             
             view_list.append(img_view)
             depth_list.append(img_depth)
