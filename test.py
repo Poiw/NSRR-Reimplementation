@@ -7,16 +7,31 @@ import data_loader.data_loaders as module_data
 import model.loss as module_loss
 import model.metric as module_metric
 import model.model as module_arch
-import model.model_test as module_test
+import model.model as module_test
 from parse_config import ConfigParser
 import os
 import logging
 from PIL import Image
 from pathlib import Path
 
+import imageio
+import numpy as np
+
 toPILImage = torchvision.transforms.ToPILImage()
 # change the fileset_name to change data set
-fileset_name = 'two_man_fight'
+fileset_name = 'bunker_seq1'
+
+def tensorSaveExr(x, path):
+    x = x.detach().cpu().numpy()
+    x = x.transpose([1, 2, 0])
+    if x.shape[2] == 2:
+        zeros = np.zeros((x.shape[0], x.shape[1],1))
+        x = np.concatenate([x, zeros], axis=2)
+
+    imageio.imwrite(path, x.astype(np.float32))
+
+def Detonemap(x):
+    return torch.exp(x) - 1
 
 # logger_path = os.path.join(os.getcwd(), 'checkpoints', fileset_name, 'test_info.log')
 
@@ -26,16 +41,13 @@ def main(config):
 
     # setup data_loader instances
     data_loader = getattr(module_data, config['data_loader']['type'])(
-        data_dir = os.path.join(os.getcwd(),'data', fileset_name, 'test/'),
-        img_dirname= 'img/',
-        depth_dirname = 'depth/',
-        flow_dirname = 'flow/',
+        data_dir_list = ["/home/M2_Disk/Songyin/Data/Bunker/Train/Seq1"],
+        cropped_size = None,
+        cropped_num = 0,
+        augmentation = False,
         batch_size = 1,
         shuffle = False,
-        num_workers = 4,
-        downsample = 2,
-        num_data = 50,
-        resize_factor = 3
+        num_workers = 4
     )
 
     # build model architecture
@@ -52,7 +64,7 @@ def main(config):
     # state_dict = checkpoint['state_dict']
     # if config['n_gpu'] > 1:
     #     model = torch.nn.DataParallel(model)
-    model.load_state_dict(torch.load(config.resume))
+    model.load_state_dict(torch.load(config.resume)["state_dict"])
 
     # prepare model for testing
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -64,8 +76,7 @@ def main(config):
     total_time = 0.0
     total_time_metric = torch.zeros(5) # feature extraction, feature zero upsampling, warping, reweighting, reconstruction
     with torch.no_grad():
-        for i,  [filename, view_list, depth_list, flow_list, truth] in enumerate(tqdm(data_loader)):
-            filename=filename[0]
+        for index,  [view_list, depth_list, flow_list, truth] in enumerate(tqdm(data_loader)):
             for i, item in enumerate(view_list):
                 view_list[i] = item.to(device)
             for i, item in enumerate(depth_list):
@@ -78,7 +89,7 @@ def main(config):
             output= model(view_list, depth_list, flow_list)
             total_time+=time() - start
 
-            time_metric = model.get_time_metric()
+            # time_metric = model.get_time_metric()
             # save sample images, or do something with output here
             # batch size must be 1 to generate a continuous video
 
@@ -89,17 +100,16 @@ def main(config):
             if not os.path.exists(truth_path):
                 os.makedirs(truth_path)
 
-            toPILImage(output[0]).save(os.path.join(output_path, filename))
-            toPILImage(truth[0]).save(os.path.join(truth_path, filename))
-            
+            tensorSaveExr(Detonemap(output[0]), os.path.join(output_path, "{:04d}.exr".format(index)))
+            tensorSaveExr(Detonemap(truth[0]), os.path.join(truth_path, "{:04d}.exr".format(index)))
 
             # computing loss, metrics on test set
-            loss = loss_fn(output, target)
+            # loss = loss_fn(output, target)
             batch_size = output.shape[0]
-            total_loss += loss.item() * batch_size
+            # total_loss += loss.item() * batch_size
             for i, metric in enumerate(metric_fns):
                 total_metrics[i] += metric(output, target) * batch_size
-            total_time_metric+=time_metric
+            # total_time_metric+=time_metric
 
     n_samples = len(data_loader.sampler)
     log = {'loss': total_loss / n_samples}
@@ -128,4 +138,5 @@ if __name__ == '__main__':
                       help='indices of GPUs to enable (default: all)')
     
     config = ConfigParser.from_args(args)
-    main(config)
+    with torch.no_grad():
+        main(config)
