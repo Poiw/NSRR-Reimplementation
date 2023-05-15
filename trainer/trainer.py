@@ -75,7 +75,7 @@ class Trainer(BaseTrainer):
             # toPILImage(output[0]).save(pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.pred.png'))
             # toPILImage(truth[0]).save(pjoin(self.config.img_dir, f'epoch_{epoch}_batch_{batch_idx}.gt.png'))
             
-            loss = self.criterion(output, target)
+            loss = self.criterion(output, target, self.config["loss_weight"]["vgg_weight"])
             loss.backward()
             self.optimizer.step()
 
