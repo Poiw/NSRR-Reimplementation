@@ -179,8 +179,8 @@ class NSRRDataset(Dataset):
             mv_path = pjoin(data_dir, "MotionVector.{:04d}.exr".format(idx))
 
         
-            img_view = np.clip(tonemap(load_exr(low_img_path)), 0, 10)
-            img_view_truth = np.clip(tonemap(load_exr(high_img_path)), 0, 10)
+            img_view = np.clip(load_exr(low_img_path), 0, 100)
+            img_view_truth = np.clip(load_exr(high_img_path), 0, 100)
             img_depth = load_exr(depth_img_path, 1)
             img_flow = load_exr(mv_path, 2)
 
@@ -233,11 +233,11 @@ class NSRRDataset(Dataset):
                     l, r, t, b = crop_l[i], crop_r[i], crop_t[i], crop_b[i]
 
                     if self.augmentation:
-                        img_view_list.append(img_view[:, t:b, l:r] * augmentation[i])
-                        img_view_truth_list.append(img_view_truth[:, t*2:b*2, l*2:r*2] * augmentation[i])
+                        img_view_list.append(tonemap(img_view[:, t:b, l:r] * augmentation[i]))
+                        img_view_truth_list.append(tonemap(img_view_truth[:, t*2:b*2, l*2:r*2] * augmentation[i]))
                     else:
-                        img_view_list.append(img_view[:, t:b, l:r])
-                        img_view_truth_list.append(img_view_truth[:, t*2:b*2, l*2:r*2])
+                        img_view_list.append(tonemap(img_view[:, t:b, l:r]))
+                        img_view_truth_list.append(tonemap(img_view_truth[:, t*2:b*2, l*2:r*2]))
 
                     img_depth_list.append(img_depth[:, t:b, l:r])
                     img_flow_list.append(img_flow[:, t*2:b*2, l*2:r*2])
