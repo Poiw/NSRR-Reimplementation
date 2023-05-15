@@ -299,7 +299,7 @@ class Reconstruction(BaseModel):
             nn.Conv2d(32+64, 32, kernel_size=kernel_size, padding=padding),
             nn.ReLU(),
             nn.Conv2d(32, 3, kernel_size=kernel_size, padding=padding),
-            nn.ReLU(),
+            # nn.ReLU(),
         )
 
 
