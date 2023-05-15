@@ -285,6 +285,7 @@ class Reconstruction(BaseModel):
             nn.ReLU(),
             nn.Conv2d(128, 128, kernel_size=kernel_size, padding=padding),
             nn.ReLU(),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
         )
         self.decoder_1 = nn.Sequential(
@@ -299,7 +300,6 @@ class Reconstruction(BaseModel):
             nn.ReLU(),
             nn.Conv2d(32, 3, kernel_size=kernel_size, padding=padding),
             nn.ReLU(),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         )
 
 
@@ -309,11 +309,11 @@ class Reconstruction(BaseModel):
         x = torch.cat((current_feature,)+ tuple(previous_features), channel_dim)
 
    
-        out_encoder_1 = self.pooling(self.encoder_1(x))
+        out_encoder_1 = self.encoder_1(x)
         
-        out_encoder_2 = self.pooling(self.encoder_2(out_encoder_1))
+        out_encoder_2 = self.encoder_2(self.pooling(out_encoder_1))
         
-        out_center = self.center(out_encoder_2)
+        out_center = self.center(self.pooling(out_encoder_2))
         
         out_decoder_1 = self.decoder_1(torch.cat((out_center, out_encoder_2), dim= channel_dim))
 
